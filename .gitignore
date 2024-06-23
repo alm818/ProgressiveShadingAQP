@@ -1,0 +1,5 @@
+*.ipynb
+resource/*
+!resource/*.py
+__pycache__/
+*.pyc

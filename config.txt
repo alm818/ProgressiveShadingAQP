@@ -1,0 +1,10 @@
+# PostgreSQL parameters
+hostname = 127.0.0.1
+port = 5432
+username = alm818
+password = postgres
+database = aqp
+schema = public
+
+# Setup parameters
+rebuild_tpch = False
