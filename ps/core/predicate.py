@@ -1,5 +1,6 @@
 from ps.util.debug import deb
 from sqlparse import sql, tokens
+from typing import List
 
 class ASTNode:
     pass
@@ -43,6 +44,7 @@ def is_variable(token):
 class Predicate:
 
     ast: BinaryOp
+    variable_names: List[str]
 
     def __init__(self, where):
         postfix = []
@@ -63,6 +65,8 @@ class Predicate:
                     postfix.append(token)
         while stack:
             postfix.append(stack.pop())
+
+        self.variable_names = set()
         for token in postfix:
             if is_operator(token):
                 right = stack.pop()
@@ -70,8 +74,9 @@ class Predicate:
                 stack.append(BinaryOp(left, token, right))
             elif is_variable(token):
                 stack.append(Variable(token.value))
+                self.variable_names.add(token.value)
             else:
                 stack.append(Constant(token.value))
         
         self.ast = stack.pop()
-        
+        self.variable_names = list(self.variable_names)        

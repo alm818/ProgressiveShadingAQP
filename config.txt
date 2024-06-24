@@ -7,4 +7,4 @@ database = aqp
 schema = public
 
 # Setup parameters
-rebuild_tpch = False
+rebuild_tpch = True

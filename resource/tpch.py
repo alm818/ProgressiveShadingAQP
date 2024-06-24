@@ -13,7 +13,7 @@ config["rebuild_tpch"] = config["rebuild_tpch"].lower() == 'true'
 
 table_names = ["nation", "region", "supplier", "customer", "part", "partsupp", "orders", "lineitem"]
 
-with psycopg.connect("dbname={} host={} port={} user={} password={}".format(config["database"], config["hostname"], config["port"], config["username"], config["password"])) as conn:
+with psycopg.connect(dbname=config["database"], user=config["username"], password=config["password"], host=config["hostname"], port=config["port"]) as conn:
     with conn.cursor() as cur:
         if config["rebuild_tpch"]:
             for table_name in table_names:
@@ -24,15 +24,16 @@ with psycopg.connect("dbname={} host={} port={} user={} password={}".format(conf
             cur.execute("""
                 SELECT EXISTS (
                     SELECT * FROM information_schema.tables 
-                    WHERE table_schema = 'public' 
+                    WHERE table_schema = '{}' 
                     AND table_name = '{}'
                 );
-            """.format(table_name))
+            """.format(config['schema'], table_name))
             exists = cur.fetchone()[0]
             if not exists:
                 copy_tbl = True
         if copy_tbl:
             print("Creating tpch tables...")
+            cur.execute("SET search_path TO {};".format(config['schema']))
             cur.execute("""
                 -- nation
                 CREATE TABLE IF NOT EXISTS "nation" (

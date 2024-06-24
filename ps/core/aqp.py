@@ -1,7 +1,8 @@
 import sqlparse
 from sqlparse import sql, tokens
-from typing import List
+from typing import List, Tuple
 from ps.util.debug import deb
+from ps.util.pg import PgManager
 from ps.core.predicate import Predicate
 
 ALLOWED_KEYWORDS = {"SELECT":1, "FROM":1, "ON":0, "AS":0, "JOIN":0, "WHERE":1, "NOT":0, "AND":0, "OR":0, "GROUP BY":1}
@@ -40,6 +41,13 @@ def get_identifiers(token):
             return [child.get_real_name() for child in token if isinstance(child, sql.Identifier)]
         case sql.Identifier:
             return [token.get_real_name()]
+
+# Todo list:
+#   - ALIAS NAME
+#   - Table.Column
+#   - JOIN
+#   - NOT
+
 class AQP:
 
     select_columns: List[str]
@@ -53,6 +61,9 @@ class AQP:
         self.groupby_columns = []
         self.where_predicate = None
 
+        pg = PgManager()
+        self.indices = pg.indices
+        pg.close()
         self.query = query
         self.ast = sqlparse.parse(query)
         self.is_valid = True
@@ -83,6 +94,14 @@ class AQP:
                             self.groupby_columns = get_identifiers(next_token)
                 elif isinstance(next_token, sql.Where):
                     self.where_predicate = Predicate(next_token)
+
+    def identify(self, name):
+        for table_name in self.indices:
+            if table_name == name:
+                return (table_name, None)
+            for column_name in self.indices[table_name]:
+                if column_name == name:
+                    return (table_name, column_name)
 
     def _validate(self):
         pass
