@@ -1,0 +1,11 @@
+[requires]
+fmt/11.0.2
+libpq/15.5
+boost/1.86.0
+
+[generators]
+CMakeDeps
+CMakeToolchain
+
+[layout]
+cmake_layout

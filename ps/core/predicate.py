@@ -77,6 +77,5 @@ class Predicate:
                 self.variable_names.add(token.value)
             else:
                 stack.append(Constant(token.value))
-        
         self.ast = stack.pop()
         self.variable_names = list(self.variable_names)        

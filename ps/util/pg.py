@@ -1,73 +1,113 @@
 import psycopg
 from ps.util.debug import deb
+from ps.util.misc import get_config
 
 class PgManager:
     
     def __init__(self):
-        self.config = {}
-        config_file = open("config.txt", 'r')
-        for l in config_file:
-            l = l.strip()
-            if len(l) > 0 and l[0] != "#":
-                key, value = [x.strip() for x in l.split("=")]
-                self.config[key] = value
-
-        self.conn = psycopg.connect(dbname=self.config["database"], user=self.config["username"], password=self.config["password"], host=self.config["hostname"], port=self.config["port"])
+        self.config = get_config()
+        self.url = f"dbname={self.config["postgres"]["database"]} user={self.config["postgres"]["username"]} password={self.config["postgres"]["password"]} host={self.config["postgres"]["hostname"]} port={self.config["postgres"]["port"]}"
+        self.conn = psycopg.connect(self.url)
         self.cur = self.conn.cursor()
-        self.cur.execute("SET search_path TO {}".format(self.config['schema']))
-        self.conn.commit()
-        self._init()
 
-    def _init(self):
-        self.cur.execute("""
+        self.cur.execute(f"SET search_path TO {self.config["postgres"]["schema"]}")
+        self.conn.commit()
+        self.init()
+
+    def init(self):
+        self.cur.execute(f"""
             SELECT table_name, column_name
             FROM information_schema.columns
-            WHERE table_schema = '{}'
-            ORDER BY table_name, column_name
-        """.format(self.config['schema']))
+            WHERE table_schema = '{self.config["postgres"]["schema"]}'
+            ORDER BY table_name, column_name;
+        """)
         rows = self.cur.fetchall()
-        self.indices = {}
+        self.unique_indices = {}
         for table_name, column_name in rows:
-            if table_name not in self.indices:
-                self.indices[table_name] = {}
-            self.indices[table_name][column_name] = [None]
+            if table_name not in self.unique_indices:
+                self.unique_indices[table_name] = {}
+            self.unique_indices[table_name][column_name] = False
         
-        self.cur.execute("""
+        self.cur.execute(f"""
             SELECT
-                i.relname as index_name,
-                t.relname as table_name,
-                a.attname as column_name,
-                count(*) OVER (PARTITION BY t.relname, i.relname) as column_count
+                t.relname AS table_name,
+                a.attname AS column_name
             FROM
-                pg_class t
-                JOIN pg_index ix ON t.oid = ix.indrelid
-                JOIN pg_class i ON i.oid = ix.indexrelid
-                JOIN pg_namespace n ON n.oid = i.relnamespace
-                JOIN pg_attribute a ON a.attrelid = t.oid AND a.attnum = ANY(ix.indkey)
+                pg_index i
+            JOIN
+                pg_class t ON t.oid = i.indrelid
+            JOIN
+                pg_attribute a ON a.attrelid = t.oid AND a.attnum = ANY(i.indkey)
+            JOIN
+                pg_namespace n ON n.oid = t.relnamespace
             WHERE
-                n.nspname = '{}' AND t.relkind = 'r';         
-        """.format(self.config["schema"]))
+                i.indisunique = true
+                AND t.relkind = 'r'  -- only consider ordinary tables
+                AND n.nspname = '{self.config["postgres"]["schema"]}';       
+        """)
         rows = self.cur.fetchall()
-        for index_name, table_name, column_name, column_count in rows:
-            if column_count == 1:
-                self.indices[table_name][column_name][0] = index_name
-            else:
-                self.indices[table_name][column_name].append(index_name)
+        for table_name, column_name in rows:
+            self.unique_indices[table_name][column_name] = True
 
-    def has_index(self, table_name, column_name):
-        return self.indices[table_name][column_name][0] is not None
+    def get_unique_column(self, table_name):
+        for column_name, is_unique in self.unique_indices[table_name].items():
+            if is_unique:
+                return column_name
+        return None
 
-    def get_indices(self, table_name, column_name):
-        if self.has_index(table_name, column_name):
-            return self.indices[table_name][column_name]
-        return self.indices[table_name][column_name][1:]
+    def exist_table(self, table_name):
+        self.cur.execute(f"""
+            SELECT COUNT(*) FROM information_schema.tables 
+            WHERE  table_schema = '{self.config["postgres"]["schema"]}'
+            AND    table_name   = '{table_name}'
+        """)
+        return self.cur.fetchone()[0] > 0
 
-    def create_index(self, table_name, column_name):
-        if not self.has_index(table_name, column_name):
-            index_name = "{}_{}".format(table_name, column_name)
-            self.cur.execute("CREATE INDEX {} ON {} USING btree ({})".format(index_name, table_name, column_name))
-            self.indices[table_name][column_name][0] = index_name
-            self.conn.commit()
+    def drop_table(self, table_name):
+        self.cur.execute(f"DROP TABLE IF EXISTS {table_name};")
+        self.conn.commit()
+
+    def get_max_connections(self):
+        self.cur.execute("SHOW max_connections;")
+        return int(self.cur.fetchone()[0])
+
+    def get_block_count(self, table_name):
+        self.cur.execute(f"SELECT pg_relation_size('{table_name}') / current_setting('block_size')::int;")
+        return self.cur.fetchone()[0]
+
+    def has_partitioned(self, table_name):
+        self.cur.execute(f"SELECT column_name FROM information_schema.columns WHERE table_name = '{table_name}' AND column_name = '{self.config["pgmanager"]["partition_column"]}'")
+        return self.cur.fetchone() is not None
+
+    def get_numeric_columns(self, table_name):
+        numeric_types = self.config["pgmanager"]["numeric_type"].split(',')
+        self.cur.execute(f"""
+            SELECT column_name
+            FROM information_schema.columns
+            WHERE table_name = '{table_name}'
+            AND data_type IN ({','.join([f"'{type}'" for type in numeric_types])});
+            """)
+        columns = []
+        for row in self.cur:
+            columns.append(row[0])
+        return columns
+
+    def get_all_keys(self, table_name):
+        self.cur.execute(f"""                              
+            SELECT DISTINCT(kcu.column_name)                    
+            FROM                                                
+                information_schema.table_constraints AS tc      
+                JOIN information_schema.key_column_usage AS kcu 
+                ON tc.constraint_name = kcu.constraint_name     
+                AND tc.table_schema = kcu.table_schema          
+            WHERE                                               
+                tc.table_name = '{table_name}'                            
+                AND tc.constraint_type IN ('PRIMARY KEY', 'FOREIGN KEY', 'UNIQUE');
+            """)
+        keys = []
+        for row in self.cur:
+            keys.append(row[0])
+        return keys
 
     def close(self):
         self.cur.close()

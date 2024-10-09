@@ -1,4 +1,4 @@
-# PostgreSQL parameters
+[postgres]
 hostname = 127.0.0.1
 port = 5432
 username = alm818
@@ -6,5 +6,23 @@ password = postgres
 database = aqp
 schema = public
 
-# Setup parameters
-rebuild_tpch = True
+[setup]
+rebuild_data = False
+rebuild_btree = False
+rebuild_dstree = True
+
+[pgmanager]
+numeric_type = smallint,integer,bigint,decimal,numeric,real,double precision,serial,bigserial
+string_type = char,varchar,text
+array_type = []
+partition_column = partition_id
+partition_table = dstree_partition
+
+[parameters]
+# if seed >= 0 then seed will be the same
+# if seed = -1 then seed will be the same during the program but not different instances of program
+# if seed = -2 then seed will always be different regardless
+seed = 42
+numeric_eps = 1e-6
+# Buffer memory in MBs
+buffer_memory = 50000

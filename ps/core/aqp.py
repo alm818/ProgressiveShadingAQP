@@ -61,9 +61,8 @@ class AQP:
         self.groupby_columns = []
         self.where_predicate = None
 
-        pg = PgManager()
-        self.indices = pg.indices
-        pg.close()
+        with PgManager() as pg:
+            self.indices = pg.unique_indices
         self.query = query
         self.ast = sqlparse.parse(query)
         self.is_valid = True

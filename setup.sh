@@ -2,12 +2,18 @@ python3 -m pip install --upgrade pip
 pip3 install -r requirements.txt
 
 cfg_file="config.txt"
-rebuild_tpch=$(grep 'rebuild_tpch' "$cfg_file" | cut -d '=' -f2 | tr -d ' ')
+rebuild_data=$(grep 'rebuild_data' "$cfg_file" | cut -d '=' -f2 | tr -d ' ')
+
+conan profile detect --force
+if [ -d build ]; then
+    rm -r build
+fi
+conan install . --output-folder=. --build=missing --settings=build_type=Release
 
 cd resource
 resource_dir=$(pwd)
 
-if [ "$rebuild_tpch" = "True" ]; then
+if [ "$rebuild_data" = "True" ]; then
     rm -rf tpch tpch-kit
 fi
 if [ ! -d "tpch" ]; then
@@ -17,8 +23,10 @@ if [ ! -d "tpch-kit" ]; then
     git clone https://github.com/gregrahn/tpch-kit.git;
     cd tpch-kit/dbgen;
     make MACHINE=LINUX DATABASE=POSTGRESQL
-    ./dbgen -s 10 -vf
+    ./dbgen -s 1 -vf
     mv *.tbl ../../tpch
     cd "$resource_dir"    
 fi
+
+python3 postgres.py
 python3 tpch.py

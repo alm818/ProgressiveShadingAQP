@@ -1,39 +1,35 @@
-import psycopg, os
+import psycopg, os, configparser
 
 current_path = os.getcwd()
 
-config = {}
+config = configparser.ConfigParser()
 config_file = open("../config.txt", 'r')
-for l in config_file:
-    l = l.strip()
-    if len(l) > 0 and l[0] != "#":
-        key, value = [x.strip() for x in l.split("=")]
-        config[key] = value
-config["rebuild_tpch"] = config["rebuild_tpch"].lower() == 'true'
+config.read_file(config_file)
+config_file.close()
 
 table_names = ["nation", "region", "supplier", "customer", "part", "partsupp", "orders", "lineitem"]
 
-with psycopg.connect(dbname=config["database"], user=config["username"], password=config["password"], host=config["hostname"], port=config["port"]) as conn:
+with psycopg.connect(dbname=config["postgres"]["database"], user=config["postgres"]["username"], password=config["postgres"]["password"], host=config["postgres"]["hostname"], port=config["postgres"]["port"]) as conn:
     with conn.cursor() as cur:
-        if config["rebuild_tpch"]:
+        if config.getboolean("setup", "rebuild_data"):
             for table_name in table_names:
-                cur.execute("""DROP TABLE IF EXISTS {} CASCADE""".format(table_name))
+                cur.execute(f"""DROP TABLE IF EXISTS {table_name} CASCADE;""")
 
         copy_tbl = False
         for table_name in table_names:
-            cur.execute("""
+            cur.execute(f"""
                 SELECT EXISTS (
                     SELECT * FROM information_schema.tables 
-                    WHERE table_schema = '{}' 
-                    AND table_name = '{}'
+                    WHERE table_schema = '{config["postgres"]["schema"]}' 
+                    AND table_name = '{table_name}'
                 );
-            """.format(config['schema'], table_name))
+            """)
             exists = cur.fetchone()[0]
             if not exists:
                 copy_tbl = True
         if copy_tbl:
             print("Creating tpch tables...")
-            cur.execute("SET search_path TO {};".format(config['schema']))
+            cur.execute(f"SET search_path TO {config["postgres"]["schema"]};")
             cur.execute("""
                 -- nation
                 CREATE TABLE IF NOT EXISTS "nation" (
@@ -122,16 +118,16 @@ with psycopg.connect(dbname=config["database"], user=config["username"], passwor
             """)
             
             print("Copying tpch tables...")
-            cur.execute("""
-                COPY "region"     FROM '{}/tpch/region.tbl'        DELIMITER '|' CSV;
-                COPY "nation"     FROM '{}/tpch/nation.tbl'        DELIMITER '|' CSV;
-                COPY "customer"   FROM '{}/tpch/customer.tbl'      DELIMITER '|' CSV;
-                COPY "supplier"   FROM '{}/tpch/supplier.tbl'      DELIMITER '|' CSV;
-                COPY "part"       FROM '{}/tpch/part.tbl'          DELIMITER '|' CSV;
-                COPY "partsupp"   FROM '{}/tpch/partsupp.tbl'      DELIMITER '|' CSV;
-                COPY "orders"     FROM '{}/tpch/orders.tbl'        DELIMITER '|' CSV;
-                COPY "lineitem"   FROM '{}/tpch/lineitem.tbl'      DELIMITER '|' CSV;
-            """.format(current_path, current_path, current_path, current_path, current_path, current_path, current_path, current_path))
+            cur.execute(f"""
+                COPY "region"     FROM '{current_path}/tpch/region.tbl'        DELIMITER '|' CSV;
+                COPY "nation"     FROM '{current_path}/tpch/nation.tbl'        DELIMITER '|' CSV;
+                COPY "customer"   FROM '{current_path}/tpch/customer.tbl'      DELIMITER '|' CSV;
+                COPY "supplier"   FROM '{current_path}/tpch/supplier.tbl'      DELIMITER '|' CSV;
+                COPY "part"       FROM '{current_path}/tpch/part.tbl'          DELIMITER '|' CSV;
+                COPY "partsupp"   FROM '{current_path}/tpch/partsupp.tbl'      DELIMITER '|' CSV;
+                COPY "orders"     FROM '{current_path}/tpch/orders.tbl'        DELIMITER '|' CSV;
+                COPY "lineitem"   FROM '{current_path}/tpch/lineitem.tbl'      DELIMITER '|' CSV;
+            """)
 
             print("Adding primary keys and foreign keys...")
             cur.execute("""

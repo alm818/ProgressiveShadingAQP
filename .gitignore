@@ -3,3 +3,8 @@ resource/*
 !resource/*.py
 __pycache__/
 *.pyc
+build
+out
+CMakeUserPresets.json
+.vscode
+.ipynb_checkpoints
