@@ -66,25 +66,25 @@ void print_node(dstree_node * node, int depth){
     }
 }
 
-void explore_node(int df, dstree_node * node, int& count, bool& merge_allow, vector<int>& partition_ids){
+void explore_node(int leaf_size, dstree_node * node, int& count, bool& merge_allow, vector<int>& partition_ids){
     if (is_leaf(node)){
-        int upper = count + (df - count % df) % df;
+        int upper = count + (leaf_size - count % leaf_size) % leaf_size;
         if (upper < count + node->node_size || !merge_allow){
             count = upper;
             merge_allow = true;
         }
         count += node->node_size;
         for (int j = 0; j < node->node_size; j ++){
-            partition_ids[node->ts_index[j]-1] = (count + df - 1) / df - 1;
+            partition_ids[node->ts_index[j]-1] = (count + leaf_size - 1) / leaf_size - 1;
         }
     } else{
-        explore_node(df, node->left_child, count, merge_allow, partition_ids);
-        explore_node(df, node->right_child, count, merge_allow, partition_ids);
+        explore_node(leaf_size, node->left_child, count, merge_allow, partition_ids);
+        explore_node(leaf_size, node->right_child, count, merge_allow, partition_ids);
         merge_allow = false;
     }
 }
 
-void hierarchicalize_table(string table_name, vector<string>& columns, int df){
+void hierarchicalize_table(string table_name, vector<string>& columns, int leaf_size){
 	auto config = Config::getInstance();
     double memory = config->pt.get<double>("parameters.buffer_memory");
     string partition_column = config->pt.get<string>("pgmanager.partition_column");
@@ -102,20 +102,9 @@ void hierarchicalize_table(string table_name, vector<string>& columns, int df){
         vector<string> keys = pg.getAllKeys(table_name);
         for (auto key : keys) columns_map[key] = Column::unsupported;
         if (columns_map.count(partition_column)) columns_map[partition_column] = Column::unsupported;
-        vector<string> columns;
         for (auto p : columns_map) if (p.second == Column::numeric_type) columns.push_back(p.first);
         if (columns.size() == 0) return;
     }
-    string partition_table = config->pt.get<string>("pgmanager.partition_table");
-    sql = fmt::format("                                 \
-        CREATE TABLE IF NOT EXISTS {} (                 \
-        table_name TEXT NOT NULL,                       \
-        columns TEXT[] NOT NULL,                        \
-        df INTEGER NOT NULL                             \
-    )", partition_table);
-	res = PQexec(pg.conn.get(), sql.c_str());
-	ck(pg.conn, res);
-    PQclear(res);
     deb(columns);
 
     // Get normalization of each column, and COUNT(*)
@@ -162,14 +151,14 @@ void hierarchicalize_table(string table_name, vector<string>& columns, int df){
     static char * index_path = "out/";
     static unsigned int time_series_size = columns.size();
     static unsigned int init_segments = columns.size();
-    static unsigned int leaf_size = df;
+    static unsigned int leaf_sz = leaf_size;
     static double buffered_memory_size = memory / 4;
     boolean is_index_new = 1;
     struct dstree_index_settings * index_settings = dstree_index_settings_init(
         index_path,
         time_series_size,   
         init_segments,       
-        leaf_size,          
+        leaf_sz,          
         buffered_memory_size,
         is_index_new);
     ASSERT(index_settings != NULL);
@@ -222,7 +211,7 @@ void hierarchicalize_table(string table_name, vector<string>& columns, int df){
     vector<int> partition_ids (total_count);
     int count = 0;
     bool merge_allow = true;
-    explore_node(df, index->first_node, count, merge_allow, partition_ids);
+    explore_node(leaf_size, index->first_node, count, merge_allow, partition_ids);
 
     pg.addColumn(table_name, partition_column, "INTEGER");
     int batch_size = 1000000;
@@ -254,12 +243,36 @@ void hierarchicalize_table(string table_name, vector<string>& columns, int df){
     res = PQexec(pg.conn.get(), sql.c_str());
     ck(pg.conn, res);
     PQclear(res);
+
+    string partition_table = config->pt.get<string>("pgmanager.partition_table");
+    sql = fmt::format("                                 \
+        CREATE TABLE IF NOT EXISTS {} (                 \
+        table_name TEXT UNIQUE NOT NULL,                \
+        columns TEXT[] NOT NULL,                        \
+        leaf_size INTEGER NOT NULL,                     \
+        partition_count INTEGER NOT NULL                \
+    )", partition_table);
+	res = PQexec(pg.conn.get(), sql.c_str());
+	ck(pg.conn, res);
+    PQclear(res);
+    vector<string> quoted_columns (columns.size());
+    for (int i = 0; i < columns.size(); ++i) quoted_columns[i] = fmt::format("'{}'", columns[i]);
+    sql = fmt::format("                                                             \
+        INSERT INTO {} (table_name, columns, leaf_size, partition_count)            \
+        VALUES ('{}', ARRAY[{}], {}, {})                                            \
+        ON CONFLICT (table_name)                                                    \
+        DO UPDATE SET columns = EXCLUDED.columns, leaf_size = EXCLUDED.leaf_size,   \
+        partition_count = EXCLUDED.partition_count                                  \
+    ", partition_table, table_name, boost::algorithm::join(quoted_columns, ", "), leaf_size, (count + leaf_size - 1) / leaf_size);
+	res = PQexec(pg.conn.get(), sql.c_str());
+	ck(pg.conn, res);
+    PQclear(res);
 }
 
 int main(int argc, char* argv[]) {
     ASSERT(argc == 3 || argc == 4);
     string table_name = string(argv[1]);
-    int df = std::stoi(argv[2]);
+    int leaf_size = std::stoi(argv[2]);
     vector<string> columns;
     if (argc == 4){
         string columns_str = string(argv[3]);
@@ -267,6 +280,6 @@ int main(int argc, char* argv[]) {
         string word;
         while (ss >> word) columns.push_back(word);
     }
-    hierarchicalize_table(table_name, columns, df);
+    hierarchicalize_table(table_name, columns, leaf_size);
     return 0;
 }

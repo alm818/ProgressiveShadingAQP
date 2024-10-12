@@ -2,3 +2,4 @@ numpy
 psycopg
 sqlparse
 tdigest
+datasketch

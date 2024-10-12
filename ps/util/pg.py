@@ -75,9 +75,12 @@ class PgManager:
         self.cur.execute(f"SELECT pg_relation_size('{table_name}') / current_setting('block_size')::int;")
         return self.cur.fetchone()[0]
 
-    def has_partitioned(self, table_name):
-        self.cur.execute(f"SELECT column_name FROM information_schema.columns WHERE table_name = '{table_name}' AND column_name = '{self.config["pgmanager"]["partition_column"]}'")
-        return self.cur.fetchone() is not None
+    def get_partitioning_info(self, table_name):
+        dstree_table = self.config["pgmanager"]["partition_table"]
+        if not self.exist_table(dstree_table):
+            return None
+        self.cur.execute(f"SELECT columns, leaf_size, partition_count FROM {dstree_table} WHERE table_name = '{table_name}'")
+        return self.cur.fetchone()
 
     def get_numeric_columns(self, table_name):
         numeric_types = self.config["pgmanager"]["numeric_type"].split(',')

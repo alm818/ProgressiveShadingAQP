@@ -5,8 +5,14 @@ from ps.solver.naive import Solver
 from ps.util.pg import PgManager
 from ps.util.debug import deb, logger
 from ps.util.misc import divide_range, upload
-from ps.util.declare import *
 from ps.core.predicate import BinaryOp, Variable, Constant
+
+PG_ARRAY_SIZE = 1000
+TID_ARRAY_SIZE = 1000
+SHM_MAX_SIZE = 10000000
+TDIGEST_DELTA = 0.001
+TDIGEST_K = 50
+TDIGEST_TABLE = "digest"
 
 class Indexer(Solver):
     

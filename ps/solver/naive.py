@@ -11,9 +11,9 @@ class Solver:
     def solving(self):
         pass
 
-    def solve(self):
+    def solve(self, *args, **kwargs):
         start_time = time.time()
-        results = self.solving()
+        results = self.solving(*args, **kwargs)
         end_time = time.time()
         elapsed_time = end_time - start_time
         print(f"{self.__class__.__name__} solves function took {elapsed_time:.6f} seconds to complete.")

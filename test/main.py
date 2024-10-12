@@ -13,8 +13,8 @@ def main():
     aqp = AQP(query)
 
     solver = Progressive(aqp)
-    sol = solver.solve()
-    deb(sol)      
+    sol = solver.solve(leaf_size=100)
+    deb(sol)
     
     # solver = Indexer(aqp)
     # sol = solver.solve()
