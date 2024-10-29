@@ -2,6 +2,19 @@ from ps.util.debug import deb
 from sqlparse import sql, tokens
 from typing import List
 
+AND = 'AND'
+OR = 'OR'
+LTE = '<='
+LT = '<'
+GTE = '>='
+GT = '>'
+
+def is_op_less(op):
+    return str(op) in [LTE, LT]
+
+def is_op_greater(op):
+    return str(op) in [GTE, GT]
+
 class ASTNode:
     pass
 
@@ -14,6 +27,9 @@ class BinaryOp(ASTNode):
 
     def is_leaf(self):
         return not isinstance(self.left, BinaryOp) and not isinstance(self.right, BinaryOp)
+
+    def is_condition(self):
+        return str(self.op) not in [AND, OR]
 
 # class UnaryOp(ASTNode):
 #     def __init__(self, op, operand):
@@ -30,7 +46,7 @@ class Constant(ASTNode):
     def __init__(self, value):
         self.value = value
 
-precedence = {'AND':1, 'OR':1, '<':2, '<=':2, '>':2, '>=':2, '=':2, '!=':2}
+precedence = {AND:1, OR:1, LT:2, LTE:2, GT:2, GTE:2, '=':2, '!=':2}
 
 def get_precedence(op):
     return precedence[op.value.upper()] if op.value.upper() in precedence else 0

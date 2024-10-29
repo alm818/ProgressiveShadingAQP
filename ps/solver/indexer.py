@@ -21,9 +21,9 @@ class Indexer(Solver):
         with PgManager() as pg:
             for variable in self.aqp.where_predicate.variable_names:
                 table_name, column_name = self.aqp.identify(variable)
-                if pg.get_unique_column(table_name) is None:
+                if pg.get_serial_column(table_name) is None:
                     logger.info(f"Start creating a unique id on table {table_name}...")
-                    pg.cur.execute(f"ALTER TABLE {table_name} ADD COLUMN {table_name}_id BIGSERIAL UNIQUE;")
+                    pg.cur.execute(f"ALTER TABLE {table_name} ADD COLUMN {table_name}_id SERIAL UNIQUE;")
                     logger.info(f"Finish creating a unique id on table {table_name}")
                     pg.init()
                 pg.cur.execute(f"""
@@ -33,7 +33,7 @@ class Indexer(Solver):
                     data BYTEA NOT NULL);
                 """)
                 pg.conn.commit()
-                pk_name = pg.get_unique_column(table_name)
+                pk_name = pg.get_serial_column(table_name)
                 index_name = f"{table_name}_{column_name}"
                 if pg.config.getboolean("setup", "rebuild_btree"):
                     pg.cur.execute(f"DELETE FROM {TDIGEST_TABLE} WHERE table_name='{table_name}' AND column_name='{column_name}';")
@@ -159,7 +159,7 @@ class Indexer(Solver):
         if node.is_leaf():
             assert(isinstance(node.left, Variable))
             assert(isinstance(node.right, Constant))
-            table_name = self.aqp.from_tables.get_roots()[0]
+            table_name = self.aqp.get_table_name()
             column_name = node.left.name
             op = str(node.op)
             node_value = float(node.right.value)
@@ -209,8 +209,8 @@ class Indexer(Solver):
     def solving(self):
         with PgManager() as pg:
             tid_set = self.node_solve(pg, self.aqp.where_predicate.ast)
-            table_name = self.aqp.from_tables.get_roots()[0]
-            pk_name = pg.get_unique_column(table_name)
+            table_name = self.aqp.get_table_name()
+            pk_name = pg.get_serial_column(table_name)
             if len(tid_set) > 1:
                 id_list = tuple(tid_set)
             else:

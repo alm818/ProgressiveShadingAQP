@@ -54,12 +54,14 @@ class AQP:
     from_tables: NameGraph
     groupby_columns: List[str]
     where_predicate: Predicate
+    aggregate_column: str
 
     def __init__(self, query):
         self.select_columns = []
         self.from_tables = None
         self.groupby_columns = []
         self.where_predicate = None
+        self.aggregate_column = None
 
         with PgManager() as pg:
             self.indices = pg.unique_indices
@@ -115,3 +117,6 @@ class AQP:
                     self.print(child, indent+1)
             else:
                 print("\t"*indent, type(node), node.ttype, node)
+
+    def get_table_name(self):
+        return self.from_tables.get_roots()[0]

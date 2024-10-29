@@ -10,7 +10,7 @@ schema = public
 rebuild_data = False
 rebuild_btree = False
 rebuild_dstree = False
-rebuild_histogram = True
+rebuild_histogram = False
 
 [pgmanager]
 numeric_type = smallint,integer,bigint,decimal,numeric,real,double precision,serial,bigserial

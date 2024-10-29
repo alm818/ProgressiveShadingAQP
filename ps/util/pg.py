@@ -55,6 +55,22 @@ class PgManager:
                 return column_name
         return None
 
+    def get_serial_column(self, table_name):
+        for column_name, is_unique in self.unique_indices[table_name].items():
+            if is_unique:
+                self.cur.execute(f"SELECT pg_get_serial_sequence('{table_name}', '{column_name}') AS sequence_name")
+                seq = self.cur.fetchone()
+                if seq is not None:
+                    result = seq[0].split('.')
+                    self.cur.execute(f"""
+                        SELECT start_value           
+                        FROM   pg_sequences                         
+                        WHERE  schemaname = '{result[0]}' AND sequencename = '{result[1]}'""")
+                    result = self.cur.fetchone()
+                    if result is not None and int(result[0]) == 1:
+                        return column_name
+        return None
+
     def exist_table(self, table_name):
         self.cur.execute(f"""
             SELECT COUNT(*) FROM information_schema.tables 

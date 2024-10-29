@@ -1,4 +1,5 @@
 python3 -m pip install --upgrade pip
+export SKLEARN_ALLOW_DEPRECATED_SKLEARN_PACKAGE_INSTALL=True
 pip3 install -r requirements.txt
 
 cfg_file="config.txt"

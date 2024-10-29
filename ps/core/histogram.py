@@ -52,18 +52,23 @@ class Histogram:
     def __init__(self, stat):
         self.pivot = np.argmax(stat.M2s)
         self.columns = swap_pivot(stat.columns, self.pivot)
-        ranges = swap_pivot(stat.maxs - stat.mins, self.pivot)
-        ranges[ranges == 0] = 1
         self.mins = swap_pivot(stat.mins, self.pivot)
+        self.maxs = swap_pivot(stat.maxs, self.pivot)
 
         bin_counts = stat.get_unique_counts()
-        pivot_sz = int(np.ceil(np.sqrt(bin_counts[self.pivot])))
-        bin_counts = np.ceil(np.cbrt(2 * bin_counts))
+        # pivot_sz = int(np.ceil(np.sqrt(bin_counts[self.pivot])))
+        pivot_sz = int(np.ceil(np.cbrt(2 * bin_counts[self.pivot])))
+        for i, v in enumerate(bin_counts):
+            if v > 1:
+                bin_counts[i] = np.ceil(np.cbrt(2 * bin_counts[i]))
         bin_counts[self.pivot] = pivot_sz
         bin_counts = swap_pivot(bin_counts, self.pivot).astype(int)
 
         self.one_counts = [np.zeros(sz, dtype=int) for sz in bin_counts]
         self.two_counts = [np.zeros((sz, pivot_sz), dtype=int) for sz in bin_counts[1:]]
+        
+        ranges = self.maxs - self.mins
+        ranges[ranges == 0] = 1
         self.scales = bin_counts / ranges
         self.bin_counts_minus_one = bin_counts - 1
         self.n = stat.n
