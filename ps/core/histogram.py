@@ -56,8 +56,8 @@ class Histogram:
         self.maxs = swap_pivot(stat.maxs, self.pivot)
 
         bin_counts = stat.get_unique_counts()
-        # pivot_sz = int(np.ceil(np.sqrt(bin_counts[self.pivot])))
-        pivot_sz = int(np.ceil(np.cbrt(2 * bin_counts[self.pivot])))
+        pivot_sz = int(np.ceil(np.sqrt(bin_counts[self.pivot])))
+        # pivot_sz = int(np.ceil(np.cbrt(2 * bin_counts[self.pivot])))
         for i, v in enumerate(bin_counts):
             if v > 1:
                 bin_counts[i] = np.ceil(np.cbrt(2 * bin_counts[i]))

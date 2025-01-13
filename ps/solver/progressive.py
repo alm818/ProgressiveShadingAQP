@@ -153,7 +153,8 @@ class Progressive(Solver):
             make_histogram = pg.config.getboolean("setup", "rebuild_histogram") or not pg.exist_table(histogram_table)
             if pg.config.getboolean("setup", "rebuild_dstree") or info is None or info[1] != leaf_size:
                 logger.info(f"Start partitioning {table_name}...")
-                process = subprocess.Popen(['bash', 'cpp_run.sh', table_name, str(leaf_size), f'"l_quantity l_extendedprice"'], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+                process = subprocess.Popen(['bash', 'cpp_run.sh', table_name, str(leaf_size)], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+                # process = subprocess.Popen(['bash', 'cpp_run.sh', table_name, str(leaf_size), '"l_quantity l_extendedprice"'], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
                 for line in process.stdout:
                     print(line.strip())
                 info = pg.get_partitioning_info(table_name)
@@ -170,6 +171,7 @@ class Progressive(Solver):
                 for j in range(layer_count):
                     group_count = int(math.ceil(partition_count / max_sizes[j]))
                     stats.append([Stat(columns, max_sizes[j]) for i in range(group_count)])
+                return
                 # async def stat_main():
                 #     queue = asyncio.Queue(maxsize=NUM_PRODUCERS)
                 #     producer_tasks = []
@@ -264,26 +266,35 @@ class Progressive(Solver):
                 pg.conn.commit()
             
             # Histograms are available, start progressive shading
-            pg.cur.execute(f"SELECT MAX(group_index) FROM {histogram_table} WHERE layer_index = {layer_count-1}")
-            option = {'func':'PROBABILITY'}
+            # pg.cur.execute(f"SELECT MAX(group_index) FROM {histogram_table} WHERE layer_index = {layer_count-1}")
+            # option = {'func':'PROBABILITY'}
 
-            last_layer_count = pg.cur.fetchone()[0] + 1
-            pq = []
-            for i in range(last_layer_count):
-                estimate = self.estimate(layer_count - 1, i, option)
-                if estimate > 0:
-                    pq.append((-estimate, layer_count - 1, i))
-            print(pq)
+            # last_layer_count = pg.cur.fetchone()[0] + 1
+            # pq = []
+            # for i in range(last_layer_count):
+            #     estimate = self.estimate(layer_count - 1, i, option)
+            #     if estimate > 0:
+            #         pq.append((-estimate, layer_count - 1, i))
+            # print(pq)
 
-            d = 1
-            li = []
-            for i in range(last_layer_count*df**d):
-                estimate = self.estimate(layer_count - d-1, i, option)
-                if estimate is not None and estimate > 0:
-                    li.append((-estimate, i))
-            li = sorted(li)[::-1]
-            for v, i in li:
-                print(-v, i)
+            # d = 1
+            # li = []
+            # for i in range(last_layer_count*df**d):
+            #     estimate = self.estimate(layer_count - d-1, i, option)
+            #     if estimate is not None and estimate > 0:
+            #         li.append((-estimate, i))
+            # li = sorted(li)[::-1]
+            # for v, i in li:
+            #     print(-v, i)
+
+            # li = []
+            # for i in range(13300, 13400):
+            #     estimate = self.estimate(0, i, option)
+            #     if estimate is not None and estimate > 0:
+            #         li.append((-estimate, i))
+            # li = sorted(li)[::-1]
+            # for v, i in li:
+            #     print(-v, i)
             # print(self.estimate(0, 397996, option))
             # print(self.estimate(1, 39799, option))
             # print(self.estimate(2, 3979, option))

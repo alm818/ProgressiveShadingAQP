@@ -59,7 +59,7 @@ def main():
     aqp = AQP(query)
 
     solver = Progressive(aqp)
-    sol = solver.solve(leaf_size=1000)
+    sol = solver.solve(leaf_size=100)
     deb(sol)
     
     # solver = Indexer(aqp)
